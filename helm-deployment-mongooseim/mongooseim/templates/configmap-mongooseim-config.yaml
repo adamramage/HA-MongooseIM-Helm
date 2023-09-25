@@ -1,0 +1,176 @@
+{{- if .Values.mongooseim_toml.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    {{- include "mongooseim.labels" . | nindent 4 }}
+  {{- with .Values.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  name: {{ include "mongooseim.fullname" . }}-config
+data:
+  mongooseim.toml: |-
+    [general]
+    loglevel = "debug"
+    default_server_domain = "your.domain.com"
+    hosts = ["your.domain.com"]
+    registration_timeout = "infinity"
+    language = "en"
+    all_metrics_are_global = false
+    sm_backend = "mnesia"
+    max_fsm_queue = 1000
+
+    {{- if .Values.mongooseim_toml.adminApi.enabled }}
+
+    [[listen.http]]
+    ip_address = "0.0.0.0"
+    port = 8088
+    transport.num_acceptors = 10
+    transport.max_connections = 1024
+
+    [[listen.http.handlers.mongoose_admin_api]]
+    host = "_"
+    path = "/api"
+    {{- end }}
+    {{- if .Values.mongooseim_toml.clientApi.enabled }}
+
+    [[listen.http]]
+    port = 8089
+    transport.num_acceptors = 10
+    transport.max_connections = 1024
+    protocol.compress = true
+    tls.verify_mode = "none"
+    tls.certfile = "/usr/lib/mongooseim/priv/ssl/iq3root.pem"
+    tls.keyfile = "/usr/lib/mongooseim/priv/ssl/mongooseim.pem"
+    tls.password = ""
+
+    [[listen.http.handlers.mongoose_client_api]]
+    host = "_"
+    path = "/api"
+    {{- end }}
+
+    {{- if .Values.mongooseim_toml.graphQLAdmin.enabled }}
+
+    [[listen.http]]
+    ip_address = "0.0.0.0"
+    port = 5551
+    transport.num_acceptors = 10
+    transport.max_connections = 1024
+
+    [[listen.http.handlers.mongoose_graphql_handler]]
+    host = "_"
+    path = "/api/graphql"
+    schema_endpoint = "admin"
+    {{- end }}
+
+    {{- if .Values.mongooseim_toml.graphQLDomainAdmin.enabled }}
+
+    [[listen.http]]
+    ip_address = "0.0.0.0"
+    port = 5541
+    transport.num_acceptors = 10
+    transport.max_connections = 1024
+
+    [[listen.http.handlers.mongoose_graphql_handler]]
+    host = "_"
+    path = "/api/graphql"
+    schema_endpoint = "domain_admin"
+    {{- end }}
+    {{- if .Values.mongooseim_toml.graphQLAdmin.enabled }}
+
+    [[listen.http]]
+    ip_address = "0.0.0.0"
+    port = 5552
+    transport.num_acceptors = 10
+    transport.max_connections = 1024
+
+    [[listen.http.handlers.mongoose_graphql_handler]]
+    host = "_"
+    path = "/api/graphql"
+    schema_endpoint = "user"
+    username = "admin"
+    password = "secret"
+    {{- end }}
+
+    {{- if .Values.mongooseim_toml.clientReceiver.enabled }}
+
+    [[listen.c2s]]
+    port = {{ .Values.mongooseim_toml.clientReceiver.port }}
+    access = "c2s"
+    shaper = "c2s_shaper"
+    allowed_auth_methods = ["pki"]
+    max_stanza_size = 65536
+    tls.cacertfile = "{{ .Values.mongooseim_toml.clientReceiver.tlsCertFile }}"
+    tls.certfile = "{{ .Values.mongooseim_toml.clientReceiver.tlsCacertFile }}"
+    tls.mode = "starttls_required"
+    tls.module = "just_tls"
+    tls.verify_mode = "peer"
+    tls.versions = ["tlsv1.2"]
+    tls.ciphers = "ECDHE-RSA-AES256-SHA384:EDH-RSA-AES256-GCM-SHA384:EDH-RSA-AES256-SHA256:AES256-GCM-SHA384:AES256-SHA256"
+    {{- end }}
+
+    [auth]
+    methods = ["external"] # change external to LDAP
+    sasl_external = ["standard"]
+    sasl_mechanisms = ["external", "plain"]
+
+    {{- if .Values.mongooseim_toml.clientReceiver.enabled }}
+
+    [auth.external]
+    program = {{ .Values.mongooseim_toml.clientReceiver.program | quote }}
+    instances = {{ .Values.mongooseim_toml.clientReceiver.instances }}
+    {{- end }}
+
+    [services.service_admin_extra]
+    [services.service_mongoose_system_metrics]
+    [modules.mod_disco]
+    users_can_see_hidden_services = false
+    [modules.mod_last]
+    [modules.mod_stream_management]
+    [modules.mod_carboncopy]
+
+    {{- if .Values.mongooseim_toml.pubsub.enabled }}
+
+    [modules.mod_pubsub]
+    access_createnode = "pubsub_createnode"
+    ignore_pep_from_offline = false
+    backend = "rdbms"
+    last_item_cache = "mnesia"
+    max_items_node = 1000
+    plugins = ["flat", "pep"]
+
+    [[modules.mod_pubsub.pep_mapping]]
+    namespace = "urn:xmpp:microblog:0"
+    node = "mb"
+    {{- end }}
+
+    [shaper.normal]
+    max_rate = 1000
+
+    [shaper.fast]
+    max_rate = 50_000
+
+    [acl]
+    local = [{ user_regexp = "" }]
+
+    [access]
+    max_user_sessions = [{ acl = "all", value = 10 }]
+    local = [{ acl = "local", value = "allow" }]
+    c2s = [{ acl = "blocked", value = "deny" }, { acl = "all", value = "allow" }]
+    c2s_shaper = [{ acl = "admin", value = "none" }, { acl = "all", value = "normal" }]
+    s2s_shaper = [{ acl = "all", value = "fast" }]
+    c2s_shaper_controller = [{ acl = "all", value = "fast" }]
+
+    [s2s]
+    default_policy = "deny"
+    outgoing.port = 5269
+
+    [[host_config]]
+    host = "your.domain.com"
+
+    [host_config.access]
+    max_user_sessions = [{ acl = "all", value = 20 }]
+    local = [{ acl = "local", value = "deny" }]
+
+{{- end }}

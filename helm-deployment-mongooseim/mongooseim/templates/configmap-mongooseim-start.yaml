@@ -1,0 +1,138 @@
+{{- if .Values.start_sh.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    {{- include "mongooseim.labels" . | nindent 4 }}
+  {{- with .Values.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  name: {{ include "mongooseim.fullname" . }}-start
+data:
+  start.sh: |-
+      #!/usr/bin/env bash
+
+      mkdir -p /usr/lib/mongooseim/var/
+      echo "stopped" > /usr/lib/mongooseim/var/status #this is to stop the started check below from shitting itself
+      echo "> MongooseIM Starting....."
+      MIM_WORK_DIR="/usr/lib"
+
+      NODE_NAME=${NODE_NAME:-"mongooseim"}
+      NODE=${NODE_NAME}@$(hostname -f)
+      ROOT_DIR=${MIM_WORK_DIR}/mongooseim
+      MNESIA_DIR=/var/lib/mongooseim/Mnesia.${NODE}
+      LOGS_DIR=/var/log/mongooseim
+      EPMD=$(find ${ROOT_DIR} -name epmd)
+      ESCRIPT=$(find ${ROOT_DIR} -name escript)
+      ETC_DIR=/usr/lib/mongooseim/etc
+
+      STATUS_DIR=/tmp/status
+
+      if [[ "$(hostname -f)" == *"ctrl"* ]]; then
+        echo "CLUSTERING: Controller - Not clustering"
+        MIM_CLUSTER=false
+      else
+        echo "CLUSTERING: Not a controller - Will Cluster..."
+        MIM_CLUSTER=true
+      fi
+
+      CLUSTER_CONTROLLER=${CLUSTER_CONTROLLER:-"mongooseim@mongooseim-ctrl-0.ctrl.mongooseim.svc.cluster.local"}
+
+      #Timers and counters
+      STARTUP_TIMER=300 #time to wait for the local instance to start
+      STARTUP_COUNTER=0
+
+      #DEBUG OPTIONS
+      MIM_DEBUG=${MIM_DEBUG:-"false"}
+      MIM_HALT_START=${MIM_HALT_START:-"false"}
+      MIM_HALT_CLUSTER=${MIM_HALT_CLUSTER:-"false"}
+      MIM_HALT_EXIT=${MIM_HALT_EXIT:-"true"}
+
+
+      # retrieve certificates etc. This will need to be moved into a init container as this script wont have perms
+      echo "> Retrieving AWS Secrets..."
+      cd /scripts
+      python get_aws_secret.py ||
+      cd -
+
+      #purge the folder to kill any old files
+      rm -rf ${ETC_DIR}/mongooseim.toml
+      rm -rf ${ETC_DIR}/app.config
+      rm -rf ${ETC_DIR}/vm.args
+
+      cp -f /mongoose-config/* ${ETC_DIR}/
+      mkdir -p /${STATUS_DIR}
+
+      rm -rf /var/lib/mongooseim/* # remove this when we figure out why its sad
+      mkdir -p /var/lib/mongooseim
+      mkdir -p ${LOGS_DIR}
+
+      chown 1001:1001 -R /var/lib/mongooseim
+      echo "Primed Logs" > /var/log/mongooseim/mongooseim.json.1
+
+      PATH="${MIM_WORK_DIR}/mongooseim/bin:${PATH}"
+
+      if [ "${MIM_DEBUG}" == "true" ]; then
+        #debug printout
+        echo "---------------------------------------------------------------"
+        echo "NODE_NAME: ${NODE_NAME}"
+        echo "NODE_HOST: ${NODE_HOST}"
+        echo "NODE: ${NODE}"
+        echo "CLUSTER_COOKIE: ${CLUSTER_COOKIE}"
+        echo "CLUSTER_CONTROLLER: ${CLUSTER_CONTROLLER}"
+        echo "MASTER_ORDINAL: ${MASTER_ORDINAL}"
+        echo "ROOT_DIR: ${ROOT_DIR}"
+        echo "MNESIA_DIR: ${MNESIA_DIR}"
+        echo "LOGS_DIR: ${LOGS_DIR}"
+        echo "EPMD: ${EPMD}"
+        echo "ESCRIPT: ${ESCRIPT}"
+        echo "ETC_DIR: ${ETC_DIR}"
+        echo "---------------------------------------------------------------"
+      fi
+
+      if ! [ "${MIM_HALT_START}" == "true" ]; then
+        SUCCEED_LAUNCH=0
+        rm -rf /var/lib/mongooseim/schema.dat
+        rm -rf /var/log/mongooseim/mongooseim.json.*
+        echo "Starting MongooseIM"
+        mongooseim live --noshell -noinput +Bd > /dev/stdout &
+        mongooseimctl started
+        SUCCEED_LAUNCH=1
+        echo "Started MongooseIM"
+        sleep 5
+
+
+      else
+        echo "DEBUG: Halted start"
+        tail -f /var/log/mongooseim/mongooseim.json.1
+      fi
+      echo "Running.."
+
+      if [ "${MIM_CLUSTER}" == "true" ]; then
+        mongooseimctl started
+
+        echo "Starting clustering with ${CLUSTER_CONTROLLER}"
+        mongooseimctl join_cluster -f "${CLUSTER_CONTROLLER}"
+        CLUSTERING_RESULT=$?
+        if [ ${CLUSTERING_RESULT} == 0 ]; then
+          echo "> Clustered ${NODE} with ${CLUSTER_CONTROLLER}"
+          echo "CLUSTER:SUCCESS" >${STATUS_DIR}/CLUSTER
+          echo "READY" >${STATUS_DIR}/READY
+          tail -f /var/log/mongooseim/mongooseim.json.1
+        else
+          echo "! > Failed clustering ${NODE} with ${CLUSTER_CONTROLLER}"
+          echo "CLUSTER:FAILED" >${STATUS_DIR}/CLUSTER
+        fi
+      else
+        echo "Not Clustering.. Done"
+        tail -f /var/log/mongooseim/mongooseim.json.1
+      fi
+
+      if [ "${MIM_HALT_EXIT}" == "true" ]; then
+        echo "DEBUG: Halted exit"
+        tail -f /var/log/mongooseim/mongooseim.json.1
+      else
+              exit 1
+      fi
+{{- end }}

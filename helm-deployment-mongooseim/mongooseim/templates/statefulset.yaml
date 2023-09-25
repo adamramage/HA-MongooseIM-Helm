@@ -1,0 +1,157 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "mongooseim.fullname" . }}
+  labels:
+    {{- include "mongooseim.labels" . | nindent 4 }}
+spec:
+  revisionHistoryLimit: 2
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  updateStrategy:
+    type: RollingUpdate
+  serviceName: {{ include "mongooseim.serviceName" . }}
+  selector:
+    matchLabels:
+      {{- include "mongooseim.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "mongooseim.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if .Values.waitForController }}
+      initContainers:
+        - name: wait-for-controller-before-startup
+          image: busybox
+          command: [ "sh", "-c", "until nc -z mongooseim-ctrl-0.ctrl.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local 4369 > /dev/null; do echo Waiting for master.; sleep 2; done;" ]
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "mongooseim.serviceAccountName" . }}
+      subdomain: stbnet-dev
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: MASTER_ORDINAL
+              value: "0"
+            - name: NODE_TYPE
+              value: "name"
+            - name: NODE_NAME
+              value: {{ .Values.nodeName }}
+          ports:
+            - name: epmd
+              containerPort: 4369
+            - name: c2s
+              containerPort: 5222
+            - name: s2s
+              containerPort: 5269
+            - name: bosh
+              containerPort: 5280
+            - name: erl-dist-9200
+              containerPort: 9200
+            - name: erl-dist-9201
+              containerPort: 9201
+            - name: erl-dist-9202
+              containerPort: 9202
+            - name: erl-dist-9203
+              containerPort: 9203
+            - name: erl-dist-9204
+              containerPort: 9204
+            - name: erl-dist-9205
+              containerPort: 9205
+            - name: erl-dist-9206
+              containerPort: 9206
+            - name: erl-dist-9207
+              containerPort: 9207
+            - name: erl-dist-9208
+              containerPort: 9208
+            - name: erl-dist-9209
+              containerPort: 9209
+{{/*          livenessProbe:*/}}
+{{/*            httpGet:*/}}
+{{/*              path: /*/}}
+{{/*              port: http*/}}
+          readinessProbe:
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 1
+            successThreshold: 2
+            failureThreshold: 1
+            exec:
+              command:
+                - grep
+                - -q
+                - started
+                - /usr/lib/mongooseim/var/status
+          volumeMounts:
+{{/*            - name: mnesia*/}}
+{{/*              mountPath: /var/lib/mongooseim*/}}
+
+            - name: {{ include "mongooseim.fullname" . }}-start
+              mountPath: /mongoose-config/start.sh
+              subPath: start.sh
+
+            - name: {{ include "mongooseim.fullname" . }}-vmargs
+              mountPath: /mongoose-config/vm.args
+              subPath: vm.args
+
+            - name: {{ include "mongooseim.fullname" . }}-config
+              mountPath: /mongoose-config/mongooseim.toml
+              subPath: mongooseim.toml
+
+            - name: {{ include "mongooseim.fullname" . }}-appconfig
+              mountPath: /mongoose-config/app.config
+              subPath: app.config
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: {{ include "mongooseim.fullname" . }}-start
+          configMap:
+            name: {{ include "mongooseim.fullname" . }}-start
+
+        - name: {{ include "mongooseim.fullname" . }}-vmargs
+          configMap:
+            name: {{ include "mongooseim.fullname" . }}-vmargs
+
+        - name: {{ include "mongooseim.fullname" . }}-config
+          configMap:
+            name: {{ include "mongooseim.fullname" . }}-config
+
+        - name: {{ include "mongooseim.fullname" . }}-appconfig
+          configMap:
+            name: {{ include "mongooseim.fullname" . }}-appconfig
+
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: mnesia
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 1Gi

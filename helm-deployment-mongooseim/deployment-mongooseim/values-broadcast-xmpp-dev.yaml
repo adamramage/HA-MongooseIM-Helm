@@ -1,0 +1,618 @@
+public:
+  replicaCount: 3
+  isMaster: False
+  waitForController: True
+  serviceName: pub
+  image:
+    repository: mongooseim/mongooseim
+    pullPolicy: Always
+    tag: "latest"
+  imagePullSecrets: {}
+
+#  start_sh --------------------------------------------------------------------
+  start_sh:
+    enabled: true
+    deleteSchemaOnStart: false
+    hostFile:
+      pipeExtra: false
+      extraLines:
+        - ""
+    dir:
+      etc: /etc/dir/
+      mongooseimLogs: /var/log/mongooseim
+      mnesia: "/var/lib/mongooseim/Mnesia.${NODE}"
+    clustering:
+      enabled: true
+      masterOrdinal: 0
+      clusterTarget: "mongooseim-controller-0.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)"
+    debug:
+      halt: false # when false: dont run the start script, just stop and wait.
+      run: true # when false: skip running mongooseim
+      cluster: true # when false: skip joining the cluster
+      verbose: true # print extra info, dump vars etc
+      updateVm.args: true # when false: skip rewriting vm.args to update
+      catchEnd: True # catch the end of the script so it doesnt exit
+
+#  app.config ------------------------------------------------------------------
+  app_config:
+    enabled: true
+#  vm.dist ---------------------------------------------------------------------
+  vm_dist:
+    enabled: true
+#  vm.args ---------------------------------------------------------------------
+  vm_args:
+    enabled: true
+    nameFormat: name #name|sname
+    nameValue: mongooseim
+    cookie: mongooseim
+    erlMaxPorts: 250000
+    erlGarbageCollection: 2
+    saslErrorLogger: false
+#  vm.dist.args ----------------------------------------------------------------
+  vm_dist.args:
+    enabled: true
+    distListenMin: 30000
+    distListenMax: 30010
+    distributedProtocol: inet_tls
+    certificates:
+      server_certfile: "/usr/lib/mongooseim/priv/ssl/mongooseim.pem client_certfile   /usr/lib/mongooseim/priv/ssl/mongooseim.pem"
+      server_keyfile: "/usr/lib/mongooseim/priv/ssl/mongooseim.key  client_keyfile   /usr/lib/mongooseim/priv/ssl/mongooseim.key"
+      server_cacertfile: "/usr/lib/mongooseim/priv/ssl/ca.pem client_cacertfile /usr/lib/mongooseim/priv/ssl/ca.pem"
+      clientVerify: verify_peer
+      serverVerify: verify_peer
+      serverFailOnPeerCert: true
+#  mongooseim.toml -------------------------------------------------------------
+  mongooseim_toml:
+    enabled: true
+    log_level: debug
+    defaultServerDomain: your.domain.com
+    hosts:
+      -  your.domain.com
+    backend: mnesia
+    shaper:
+      normal:
+        max_rate: 1000
+      fast:
+        max_rate: 50_000
+
+    servicesAdminExtras:
+      - node
+      - accounts
+      - sessions
+      - vcard
+      - roster
+      - last
+      - private
+      - stanza
+      - stats
+
+    clientReceiver:
+      enabled: true
+      port: 5222
+      auth:
+        - external
+      maxStanzaSize: 65536
+      tlsCertFile: "priv/ssl/cert.pem"
+      tlsCacertFile : "priv/ssl/cacert.pem"
+
+      # Only if using external
+      program: /scripts/auth4.py
+      instances: 1
+
+    auth:
+      methods:
+        - external
+      saslExternal:
+        - standard
+      saslMechanism:
+        - external
+        - plain
+    adminApi:
+      enabled: true
+      ip_address: "0.0.0.0"
+      port: 8088
+      host: mongooseim-0.mongooseim.mongooseim.svc.cluster.local
+      path: /api
+
+    pubsub:
+      enabled: false
+
+    clientApi:
+      enabled: true
+      ip_address: "0.0.0.0"
+      port: 8089
+      host: mongooseim-0.mongooseim.mongooseim.svc.cluster.local
+      path: /api
+
+    graphQLAdmin:
+      enabled: true
+      ip_address: "0.0.0.0"
+      port: 5551
+      host: mongooseim-0.mongooseim.mongooseim.svc.cluster.local
+      path: /api/graphql
+      schemaEndpoint: admin
+
+    graphQLDomainAdmin:
+      enabled: true
+      ip_address: "0.0.0.0"
+      port: 5552
+      host: mongooseim-0.mongooseim.mongooseim.svc.cluster.local
+      path: /api/graphql
+      schemaEndpoint: domain_admin
+
+  nodeName: mim
+  nodeCookie: mongooseim
+
+  nameOverride: ""
+  fullnameOverride: ""
+
+  serviceAccount:
+    create: true
+    annotations: {}
+    name: "public-worker"
+
+  podAnnotations: {}
+
+  podSecurityContext: {}
+
+  securityContext: {}
+
+  service:
+    type: ClusterIP
+    port: 80
+
+  ingress:
+    enabled: false
+    annotations: {}
+    hosts:
+      - host: chart-example.local
+        paths: []
+    tls: []
+
+  resources: {}
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 12
+    targetCPUUtilizationPercentage: 80
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}
+
+  loadBalancerIP: ""
+
+  nodeport:
+    enabled: false
+
+# -------------------------------------------------------------------------------------------------
+private:
+  replicaCount: 2
+  isMaster: False
+  waitForController: True
+  serviceName: pvt
+  image:
+    repository: mongooseim/mongooseim
+    pullPolicy: Always
+    tag: "latest"
+  imagePullSecrets: {}
+
+
+#  start_sh --------------------------------------------------------------------
+  start_sh:
+    enabled: true
+    deleteSchemaOnStart: false
+    hostFile:
+      pipeExtra: false
+      extraLines:
+        - ""
+    dir:
+      etc: /etc/dir/
+      mongooseimLogs: /var/log/mongooseim
+      mnesia: "/var/lib/mongooseim/Mnesia.${NODE}"
+    clustering:
+      enabled: true
+      masterOrdinal: 0
+      clusterTarget: "mongooseim-controller-0.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)"
+    debug:
+      halt: false # when false: dont run the start script, just stop and wait.
+      run: true # when false: skip running mongooseim
+      cluster: true # when false: skip joining the cluster
+      verbose: true # print extra info, dump vars etc
+      updateVm.args: true # when false: skip rewriting vm.args to update
+      catchEnd: True # catch the end of the script so it doesnt exit
+#  app.config ---------------------------------------------------------------------
+  app_config:
+    enabled: true
+#  vm.dist ---------------------------------------------------------------------
+  vm_dist:
+    enabled: true
+#  vm.args ---------------------------------------------------------------------
+  vm_args:
+    enabled: true
+    nameFormat: name #name|sname
+    nameValue: mongooseim
+    cookie: mongooseim
+    erlMaxPorts: 250000
+    erlGarbageCollection: 2
+    saslErrorLogger: false
+#  vm.dist.args ----------------------------------------------------------------
+  vm_dist.args:
+    enabled: true
+    distListenMin: 30000
+    distListenMax: 30010
+    distributedProtocol: inet_tls
+    certificates:
+      server_certfile: "/usr/lib/mongooseim/priv/ssl/mongooseim.pem client_certfile   /usr/lib/mongooseim/priv/ssl/mongooseim.pem"
+      server_keyfile: "/usr/lib/mongooseim/priv/ssl/mongooseim.key  client_keyfile   /usr/lib/mongooseim/priv/ssl/mongooseim.key"
+      server_cacertfile: "/usr/lib/mongooseim/priv/ssl/ca.pem client_cacertfile /usr/lib/mongooseim/priv/ssl/ca.pem"
+      clientVerify: verify_peer
+      serverVerify: verify_peer
+      serverFailOnPeerCert: true
+#  mongooseim.toml -------------------------------------------------------------
+  mongooseim_toml:
+    enabled: true
+    log_level: debug
+    defaultServerDomain: your.domain.com
+    hosts:
+      -  your.domain.com
+    backend: mnesia
+    shaper:
+      normal:
+        max_rate: 1000
+      fast:
+        max_rate: 50_000
+
+    servicesAdminExtras:
+      - node
+      - accounts
+      - sessions
+      - vcard
+      - roster
+      - last
+      - private
+      - stanza
+      - stats
+
+    pubsub:
+      enabled: false
+
+    clientReceiver:
+      enabled: true
+      port: 5222
+      auth:
+        - external
+      maxStanzaSize: 65536
+      tlsCertFile: "priv/ssl/cert.pem"
+      tlsCacertFile : "priv/ssl/cacert.pem"
+
+      # Only if using external
+      program: /scripts/auth4.py
+      instances: 1
+
+    auth:
+      methods:
+        - external
+      saslExternal:
+        - standard
+      saslMechanism:
+        - external
+        - plain
+    adminApi:
+      enabled: true
+      ip_address: "0.0.0.0"
+      port: 8088
+      host: mongooseim-0.mongooseim.mongooseim.svc.cluster.local
+      path: /api
+
+    clientApi:
+      enabled: true
+      ip_address: "0.0.0.0"
+      port: 8089
+      host: mongooseim-0.mongooseim.mongooseim.svc.cluster.local
+      path: /api
+
+    graphQLAdmin:
+      enabled: true
+      ip_address: "0.0.0.0"
+      port: 5551
+      host: mongooseim-0.mongooseim.mongooseim.svc.cluster.local
+      path: /api/graphql
+      schemaEndpoint: admin
+
+    graphQLDomainAdmin:
+      enabled: true
+      ip_address: "0.0.0.0"
+      port: 5552
+      host: mongooseim-0.mongooseim.mongooseim.svc.cluster.local
+      path: /api/graphql
+      schemaEndpoint: domain_admin
+
+
+
+  nodeName: mim
+  nodeCookie: mongooseim
+
+  nameOverride: ""
+  fullnameOverride: ""
+
+  serviceAccount:
+    create: true
+    annotations: {}
+    name: "private-worker"
+
+  podAnnotations: {}
+
+  podSecurityContext: {}
+
+  securityContext: {}
+
+  service:
+    type: ClusterIP
+
+
+  ingress:
+    enabled: false
+    annotations: {}
+    hosts:
+      - host: chart-example.local
+        paths: []
+    tls: []
+
+  resources: {}
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 12
+    targetCPUUtilizationPercentage: 80
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}
+
+  loadBalancerIP: ""
+
+  nodeport:
+    enabled: false
+
+
+# -------------------------------------------------------------------------------------------------
+ctrl:
+  replicaCount: 1
+  isMaster: True
+  image:
+    repository: mongooseim/mongooseim
+    pullPolicy: Always
+    tag: "latest"
+  imagePullSecrets: {}
+
+  nodeName: mim
+  nodeCookie: mongooseim
+  serviceName: ctrl
+  # ConfigMap Templating Variables
+
+  configMap:
+    ConfigDir: /mongoose-config/
+
+#  start_sh --------------------------------------------------------------------
+  start_sh:
+    enabled: true
+    deleteSchemaOnStart: false
+    hostFile:
+      pipeExtra: false
+      extraLines:
+        - ""
+    dir:
+      etc: /etc/dir/
+      mongooseimLogs: /var/log/mongooseim
+      mnesia: "/var/lib/mongooseim/Mnesia.${NODE}"
+    clustering:
+      enabled: true
+      masterOrdinal: 0
+      clusterTarget: "mongooseim-controller-0.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)"
+    debug:
+      halt: false # when false: dont run the start script, just stop and wait.
+      run: true # when false: skip running mongooseim
+      cluster: true # when false: skip joining the cluster
+      verbose: true # print extra info, dump vars etc
+      updateVm.args: true # when false: skip rewriting vm.args to update
+      catchEnd: True # catch the end of the script so it doesnt exit
+#  app.config ---------------------------------------------------------------------
+  app_config:
+    enabled: true
+#  vm.dist ---------------------------------------------------------------------
+  vm_dist:
+    enabled: true
+#  vm.args ---------------------------------------------------------------------
+  vm_args:
+    enabled: true
+    nameFormat: name #name|sname
+    nameValue: mongooseim
+    cookie: mongooseim
+    erlMaxPorts: 250000
+    erlGarbageCollection: 2
+    saslErrorLogger: false
+#  vm.dist.args ----------------------------------------------------------------
+  vm_dist.args:
+    enabled: true
+    distListenMin: 30000
+    distListenMax: 30010
+    distributedProtocol: inet_tls
+    certificates:
+      server_certfile: "/usr/lib/mongooseim/priv/ssl/mongooseim.pem client_certfile   /usr/lib/mongooseim/priv/ssl/mongooseim.pem"
+      server_keyfile: "/usr/lib/mongooseim/priv/ssl/mongooseim.key  client_keyfile   /usr/lib/mongooseim/priv/ssl/mongooseim.key"
+      server_cacertfile: "/usr/lib/mongooseim/priv/ssl/ca.pem client_cacertfile /usr/lib/mongooseim/priv/ssl/ca.pem"
+      clientVerify: verify_peer
+      serverVerify: verify_peer
+      serverFailOnPeerCert: true
+#  mongooseim.toml -------------------------------------------------------------
+  mongooseim_toml:
+    enabled: true
+    log_level: debug
+    defaultServerDomain: your.domain.com
+    hosts:
+      -  your.domain.com
+    backend: mnesia
+    shaper:
+      normal:
+        max_rate: 1000
+      fast:
+        max_rate: 50_000
+
+    servicesAdminExtras:
+      - node
+      - accounts
+      - sessions
+      - vcard
+      - roster
+      - last
+      - private
+      - stanza
+      - stats
+
+    pubsub:
+      enabled: false
+
+    clientReceiver:
+      enabled: true
+      port: 5222
+      auth:
+        - external
+      maxStanzaSize: 65536
+      tlsCertFile: "priv/ssl/cert.pem"
+      tlsCacertFile : "priv/ssl/cacert.pem"
+
+      # Only if using external
+      program: /scripts/auth4.py
+      instances: 1
+
+    auth:
+      methods:
+        - external
+      saslExternal:
+        - standard
+      saslMechanism:
+        - external
+        - plain
+    adminApi:
+      enabled: true
+      ip_address: "0.0.0.0"
+      port: 8088
+      host: mongooseim-0.mongooseim.mongooseim.svc.cluster.local
+      path: /api
+
+    clientApi:
+      enabled: true
+      ip_address: "0.0.0.0"
+      port: 8089
+      host: mongooseim-0.mongooseim.mongooseim.svc.cluster.local
+      path: /api
+
+    graphQLAdmin:
+      enabled: true
+      ip_address: "0.0.0.0"
+      port: 5551
+      host: mongooseim-0.mongooseim.mongooseim.svc.cluster.local
+      path: /api/graphql
+      schemaEndpoint: admin
+
+    graphQLDomainAdmin:
+      enabled: true
+      ip_address: "0.0.0.0"
+      port: 5552
+      host: mongooseim-0.mongooseim.mongooseim.svc.cluster.local
+      path: /api/graphql
+      schemaEndpoint: domain_admin
+
+  # End CM
+  nameOverride: ""
+  fullnameOverride: ""
+
+  serviceAccount:
+    create: true
+    annotations: {}
+    name: "mongoose-controller"
+
+  podAnnotations: {}
+
+  podSecurityContext: {}
+
+  securityContext: {}
+
+  ingress:
+    enabled: false
+    annotations: {}
+    hosts:
+      - host: chart-example.local
+        paths: []
+    tls: []
+
+  resources: {}
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 12
+    targetCPUUtilizationPercentage: 80
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}
+
+  loadBalancerIP: ""
+
+  nodeport:
+    enabled: false
+
+# -------------------------------------------------------------------------------------------------
+graphite-exporter:
+  replicaCount: 1
+
+  image:
+    repository: prom/graphite-exporter
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "latest"
+
+  imagePullSecrets: []
+  nameOverride: ""
+  fullnameOverride: ""
+
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+      # kubernetes.io/ingress.class: nginx
+      # kubernetes.io/tls-acme: "true"
+    hosts:
+      - host: chart-example.local
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+    tls: []
+    #  - secretName: chart-example-tls
+    #    hosts:
+    #      - chart-example.local
+
+  resources: {}
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 80
+    # targetMemoryUtilizationPercentage: 80
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}

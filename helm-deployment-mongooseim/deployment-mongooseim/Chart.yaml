@@ -1,0 +1,39 @@
+apiVersion: v2
+name: mongooseim
+description: MongooseIM — The best Enterprise Instant Messaging Solution is the one built for your business.
+keywords:
+  - mongooseim
+  - xmpp
+  - messaging
+  - chat
+  - erlang
+type: application
+version: 0.3.8
+appVersion: 6.1.0
+home: https://github.com/esl/MongooseIM
+icon: https://github.com/esl/MongooseIM/blob/master/doc/MongooseIM_logo.png
+maintainers:
+  - name: MongooseIM Team
+    email: mongooseim@erlang-solutions.com
+
+dependencies:
+# mongooseim-worker = These bear the load of set top box client connections; certificate auth only
+# mongooseim-controller = These are responsible for clustering, orchestration etc of the cluster. \
+#             These do not accept any c2s traffic. explicitly do not have the listners
+# mongooseim-private = These bear the load of internal tools connectivity; basic auth only. Set top boxes cannot connect here
+  - name: mongooseim
+    version: 0.3.8
+    alias: public
+    repository: "file://../mongooseim"
+  - name: mongooseim
+    version: 0.3.8
+    alias: ctrl
+    repository: "file://../mongooseim"
+  - name: mongooseim
+    version: 0.3.8
+    alias: private
+    repository: "file://../mongooseim"
+  - name: graphite-exporter
+    version: 0.1.0
+    alias: graphite-exporter
+    repository: "file://../graphite-exporter"

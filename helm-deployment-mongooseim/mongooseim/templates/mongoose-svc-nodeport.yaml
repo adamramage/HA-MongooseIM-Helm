@@ -1,0 +1,16 @@
+{{ if .Values.nodeport.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mongooseim.fullname" . }}-nodeport
+  labels:
+    {{- include "mongooseim.labels" . | nindent 4 }}
+spec:
+  ports:
+  - protocol: TCP
+    port: 5222
+    targetPort: 5222
+  selector:
+    {{- include "mongooseim.selectorLabels" . | nindent 4 }}
+  type: NodePort
+{{ end }}
